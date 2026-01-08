@@ -944,17 +944,36 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signOut, signInWithCustomToken, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, getDoc, getDocs, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
         let firebaseConfig;
         if (typeof __firebase_config !== 'undefined') {
              firebaseConfig = JSON.parse(__firebase_config);
         } else {
-             firebaseConfig = { apiKey: "", authDomain: "", projectId: "" }; 
+             // NEW CONFIG
+             firebaseConfig = {
+                apiKey: "AIzaSyBbFjEwPKGP_9vEURDdoLIHuC8cfdZBe4s",
+                authDomain: "new-get-and-profit.firebaseapp.com",
+                projectId: "new-get-and-profit",
+                storageBucket: "new-get-and-profit.firebasestorage.app",
+                messagingSenderId: "1068436218092",
+                appId: "1:1068436218092:web:ae1773885f575c653b05c9",
+                measurementId: "G-CZQBLFPQ2R"
+             };
         }
         
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        // Initialize Analytics
+        let analytics;
+        try {
+            analytics = getAnalytics(app);
+        } catch (e) {
+            console.log("Analytics not supported in this environment");
+        }
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         let currentUser = null;
@@ -974,6 +993,7 @@
                 initAccountsListener();
             } else {
                 document.getElementById('auth-overlay').style.display = 'flex';
+                document.getElementById('auth-error').style.display = 'none';
             }
         });
 
@@ -981,16 +1001,39 @@
             e.preventDefault();
             const email = document.getElementById('auth-email').value;
             const password = document.getElementById('auth-password').value;
+            const btn = document.getElementById('btn-login');
+            const originalText = btn.innerText;
+            const errDiv = document.getElementById('auth-error');
+            
+            // UI Loading State
+            btn.innerText = "PROCESSING...";
+            btn.disabled = true;
+            errDiv.style.display = 'none';
+
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                if (isLoginMode) {
+                    await signInWithEmailAndPassword(auth, email, password);
                 } else {
-                    if (isLoginMode) await signInWithEmailAndPassword(auth, email, password);
-                    else await createUserWithEmailAndPassword(auth, email, password);
+                    await createUserWithEmailAndPassword(auth, email, password);
                 }
             } catch (error) {
-                document.getElementById('auth-error').innerText = error.message;
-                document.getElementById('auth-error').style.display = 'block';
+                console.error("Auth Error:", error);
+                
+                let msg = error.message;
+                if (error.code === 'auth/operation-not-allowed') {
+                    msg = "Email/Password login is not enabled in Firebase Console.";
+                } else if (error.code === 'auth/invalid-credential') {
+                    msg = "Invalid email or password.";
+                } else if (error.code === 'auth/email-already-in-use') {
+                    msg = "Email already in use.";
+                } else if (error.code === 'auth/weak-password') {
+                    msg = "Password should be at least 6 characters.";
+                }
+                
+                errDiv.innerText = msg;
+                errDiv.style.display = 'block';
+                btn.innerText = originalText;
+                btn.disabled = false;
             }
         };
 
@@ -998,6 +1041,7 @@
             isLoginMode = !isLoginMode;
             document.getElementById('auth-title').innerText = isLoginMode ? 'Access Terminal' : 'New Trader Access';
             document.getElementById('btn-login').innerText = isLoginMode ? 'Login' : 'Create Account';
+            document.getElementById('btn-toggle-auth').innerText = isLoginMode ? 'No Account? Create One' : 'Have Account? Login';
         };
 
         window.logout = () => { signOut(auth); location.reload(); };
@@ -1344,7 +1388,6 @@
             checklist: { title: "Master Checklist", type: 'checklist' },
             calc: { title: "Position Calc", type: 'calc' },
             journal: { title: "Journal", type: 'journal' }
-            // Removed Market Analysis
         };
 
         let activeNav = 'checklist';
